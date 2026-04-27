@@ -1,0 +1,198 @@
+openapi: 3.0.0
+info:
+  title: BudStore API Documentation
+  description: API специфікація для інтернет-магазину будівельних матеріалів. Документ охоплює керування каталогом, замовленнями та платіжними транзакціями.
+  version: 1.0.0
+
+servers:
+  - url: https://api.budstore.com/v1
+    description: Основний сервер продуктиву
+
+paths:
+  # --- РЕСУРС: ТОВАРИ (PRODUCTS) ---
+  /products:
+    get:
+      summary: Отримати список усіх товарів
+      description: Повертає перелік будматеріалів з можливістю фільтрації за наявністю.
+      responses:
+        '200':
+          description: Успішна відповідь зі списком товарів
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+    post:
+      summary: Додати новий товар (Менеджер)
+      description: Створює новий запис будматеріалу в базі даних каталогу.
+      responses:
+        '201':
+          description: Товар успішно створено
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /products/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Унікальний ідентифікатор товару
+        schema:
+          type: integer
+    get:
+      summary: Отримати деталі товару
+      description: Повертає повну інформацію про конкретний товар за його ID.
+      responses:
+        '200':
+          description: Інформацію про товар успішно знайдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+    put:
+      summary: Оновити інформацію про товар (Менеджер)
+      description: Оновлює ціну, залишки або інші атрибути існуючого товару.
+      responses:
+        '200':
+          description: Дані товару успішно оновлено
+    delete:
+      summary: Видалити товар з каталогу
+      description: Повністю видаляє товар з бази даних магазину.
+      responses:
+        '204':
+          description: Товар успішно видалено (немає контенту для повернення)
+
+  # --- РЕСУРС: ЗАМОВЛЕННЯ (ORDERS) ---
+  /orders:
+    get:
+      summary: Переглянути список замовлень (Менеджер/Комірник)
+      description: Повертає список усіх замовлень для обробки та комплектації.
+      responses:
+        '200':
+          description: Список замовлень успішно отримано
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+    post:
+      summary: Створити нове замовлення (Покупець)
+      description: Формує нове замовлення на основі кошика клієнта.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Order'
+      responses:
+        '201':
+          description: Замовлення успішно сформовано в системі
+
+  /orders/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Унікальний ідентифікатор замовлення
+        schema:
+          type: integer
+    get:
+      summary: Отримати статус конкретного замовлення
+      description: Перевірка поточного статусу замовлення клієнтом або менеджером.
+      responses:
+        '200':
+          description: Дані про замовлення успішно отримано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+    patch:
+      summary: Змінити статус замовлення (Комплектація/Відправка)
+      description: Використовується комірником для позначення готовності замовлення до відправки.
+      responses:
+        '200':
+          description: Статус замовлення успішно оновлено
+
+  # --- РЕСУРС: ОПЛАТИ (PAYMENTS) ---
+  /payments:
+    post:
+      summary: Ініціювати оплату замовлення
+      description: Відправляє запит до зовнішнього платіжного шлюзу (LiqPay).
+      responses:
+        '200':
+          description: Транзакція успішно ініційована
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+
+  /payments/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Унікальний ідентифікатор транзакції
+        schema:
+          type: integer
+    get:
+      summary: Отримати інформацію про транзакцію
+      description: Повертає актуальний статус платежу від еквайрингу.
+      responses:
+        '200':
+          description: Деталі транзакції успішно отримано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+
+components:
+  schemas:
+    Product:
+      type: object
+      properties:
+        id_product: { type: integer }
+        category_id: { type: integer }
+        name: { type: string, example: "Цемент М-500" }
+        price: { type: number, format: float }
+        stock_quantity: { type: integer }
+
+    Order:
+      type: object
+      properties:
+        id_order: { type: integer }
+        user_id: { type: integer }
+        total_amount: { type: number }
+        status: { type: string, example: "pending" }
+        created_at: { type: string, format: date-time }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              product_id: { type: integer }
+              quantity: { type: integer }
+
+    Payment:
+      type: object
+      properties:
+        id_payment: { type: integer }
+        order_id: { type: integer }
+        amount: { type: number }
+        payment_date: { type: string, format: date-time }
+        transaction_status: { type: string, example: "success" }
+
+    ErrorResponse:
+      type: object
+      properties:
+        code: { type: integer }
+        message: { type: string }
+
+  responses:
+    BadRequest:
+      description: Помилка у вхідних даних
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
